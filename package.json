@@ -1,0 +1,19 @@
+{
+  "name": "lifedrop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "LifeDrop - Blood donation management platform",
+  "scripts": {
+    "setup:env": "node scripts/generate-env.js",
+    "install:all": "npm --prefix server ci && npm --prefix client ci",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "test": "npm --prefix server test && npm --prefix client test",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:dev:down": "docker compose -f docker-compose.dev.yml down"
+  }
+}

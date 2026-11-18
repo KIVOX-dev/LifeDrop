@@ -1,0 +1,68 @@
+# LifeDrop - development stack with hot reload (Vite + tsx watch).
+#   docker compose -f docker-compose.dev.yml up --build
+# Frontend: http://localhost:5173   API: http://localhost:5000/api/v1   Swagger: http://localhost:5000/api/docs
+name: lifedrop-dev
+
+services:
+  mongodb:
+    image: mongo:7
+    command: ["mongod", "--auth", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-lifedrop}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-dev-only-password}
+      MONGO_INITDB_DATABASE: lifedrop
+    volumes: [mongo_dev_data:/data/db]
+    ports: ["127.0.0.1:27017:27017"]   # handy for Compass in development only
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u \"$$MONGO_INITDB_ROOT_USERNAME\" -p \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep -q 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redis_dev_data:/data]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 10 }
+
+  backend:
+    build: { context: ./server, target: dev }
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      CLIENT_URL: http://localhost:5173
+      API_BASE_URL: http://localhost:5000/api/v1
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:-lifedrop}:${MONGO_ROOT_PASSWORD:-dev-only-password}@mongodb:27017/lifedrop?authSource=admin
+      QUEUE_REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me-0123456789abcdef}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me-fedcba9876543210}
+      SEED_SUPER_ADMIN_EMAIL: ${SEED_SUPER_ADMIN_EMAIL:-admin@lifedrop.local}
+      SEED_SUPER_ADMIN_PASSWORD: ${SEED_SUPER_ADMIN_PASSWORD:-ChangeMe123!}
+    volumes:
+      - ./server/src:/app/src
+    depends_on:
+      mongodb: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["5000:5000"]
+
+  frontend:
+    build: { context: ./client, target: dev }
+    environment:
+      VITE_DEV_PROXY_TARGET: http://backend:5000
+      CHOKIDAR_USEPOLLING: "true"      # reliable file watching on Windows/macOS bind mounts
+    volumes:
+      - ./client/src:/app/src
+      - ./client/index.html:/app/index.html
+      - ./client/public:/app/public
+    depends_on: [backend]
+    ports: ["5173:5173"]
+
+volumes:
+  mongo_dev_data:
+  redis_dev_data:

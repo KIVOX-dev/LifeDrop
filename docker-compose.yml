@@ -1,0 +1,81 @@
+# LifeDrop - production-style stack: nginx(frontend) + API + MongoDB + Redis (job queue)
+#   cp .env.example .env   (or: node scripts/generate-env.js)   then fill in integration keys
+#   docker compose up -d --build
+name: lifedrop
+
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--auth", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?set MONGO_ROOT_USERNAME in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
+      MONGO_INITDB_DATABASE: lifedrop
+    volumes:
+      - mongo_data:/data/db
+    networks: [internal]          # not published to the host
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u \"$$MONGO_INITDB_ROOT_USERNAME\" -p \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep -q 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Append-only persistence so delayed reminder jobs survive restarts.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis_data:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./server
+      target: runtime
+    restart: unless-stopped
+    init: true                    # forwards SIGTERM for graceful shutdown
+    env_file: .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 5000
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/lifedrop?authSource=admin
+      QUEUE_REDIS_URL: redis://redis:6379
+    depends_on:
+      mongodb: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:${API_PORT:-5000}:5000"
+    networks: [internal, edge]    # edge gives outbound access to Brevo / Backblaze / Groq
+    stop_grace_period: 20s
+
+  frontend:
+    build:
+      context: ./client
+      target: runtime
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}   # public, non-secret
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:5000
+    depends_on:
+      backend: { condition: service_healthy }
+    ports:
+      - "${FRONTEND_PORT:-5173}:8080"
+    networks: [edge]
+
+networks:
+  internal:
+    internal: true                # MongoDB and Redis can never reach (or be reached from) the internet
+  edge: {}
+
+volumes:
+  mongo_data:
+  redis_data:
