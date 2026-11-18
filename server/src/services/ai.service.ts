@@ -6,29 +6,44 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
 
+/** GROQ_API_KEY may hold several comma-separated keys; they are used round-robin and rotated on 429/401/403. */
+const groqKeys = () => (env.GROQ_API_KEY ?? '').split(',').map((k) => k.trim()).filter(Boolean);
+let keyCursor = 0;
+
 /** Backend-only Groq client (OpenAI-compatible chat completions). */
 export async function groqChat(messages: ChatMessage[], opts: { maxTokens?: number; temperature?: number } = {}) {
   if (!env.integrations.groq) throw ApiError.unavailable('The AI assistant is not configured');
-  let res: Response;
-  try {
-    res = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${env.GROQ_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: env.GROQ_MODEL,
-        messages,
-        max_tokens: opts.maxTokens ?? 700,
-        temperature: opts.temperature ?? 0.3,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch (err: any) {
-    logger.error({ err: err.message }, 'Groq request failed');
-    throw new ApiError(502, 'The AI service is unreachable. Please try again later.', 'AI_ERROR');
+  const keys = groqKeys();
+  let res: Response | undefined;
+  for (let attempt = 0; attempt < keys.length; attempt++) {
+    const key = keys[(keyCursor + attempt) % keys.length];
+    try {
+      res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: env.GROQ_MODEL,
+          messages,
+          max_tokens: opts.maxTokens ?? 700,
+          temperature: opts.temperature ?? 0.3,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err: any) {
+      logger.error({ err: err.message }, 'Groq request failed');
+      throw new ApiError(502, 'The AI service is unreachable. Please try again later.', 'AI_ERROR');
+    }
+    // Rate-limited or rejected key: remember the next key and try it. Never log key material.
+    if ([429, 401, 403].includes(res.status) && attempt < keys.length - 1) {
+      logger.warn({ status: res.status, keyIndex: (keyCursor + attempt) % keys.length }, 'Groq key rejected; rotating');
+      continue;
+    }
+    keyCursor = (keyCursor + attempt) % keys.length;
+    break;
   }
-  if (!res.ok) {
-    logger.error({ status: res.status, body: (await res.text().catch(() => '')).slice(0, 300) }, 'Groq error');
-    throw new ApiError(res.status === 429 ? 429 : 502, 'The AI service returned an error. Please try again later.', 'AI_ERROR');
+  if (!res || !res.ok) {
+    logger.error({ status: res?.status, body: (await res?.text().catch(() => ''))?.slice(0, 300) }, 'Groq error');
+    throw new ApiError(res?.status === 429 ? 429 : 502, 'The AI service returned an error. Please try again later.', 'AI_ERROR');
   }
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const text = json.choices?.[0]?.message?.content?.trim();

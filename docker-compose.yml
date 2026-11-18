@@ -46,7 +46,8 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 5000
-      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/lifedrop?authSource=admin
+      # Bundled MongoDB by default; set MONGODB_URI_DOCKER in .env to use an external cluster (e.g. Atlas) instead.
+      MONGODB_URI: ${MONGODB_URI_DOCKER:-mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/lifedrop?authSource=admin}
       QUEUE_REDIS_URL: redis://redis:6379
     depends_on:
       mongodb: { condition: service_healthy }
