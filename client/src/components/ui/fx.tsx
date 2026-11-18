@@ -79,7 +79,6 @@ export function CountUp({ value, duration = 1600, className }: { value: number; 
 export function RotatingWords({ words, every = 2800, className }: { words: string[]; every?: number; className?: string }) {
   const [i, setI] = useState(0);
   useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     const t = setInterval(() => setI((x) => (x + 1) % words.length), every);
     return () => clearInterval(t);
   }, [words.length, every]);

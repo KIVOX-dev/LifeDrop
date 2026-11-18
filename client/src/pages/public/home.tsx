@@ -105,16 +105,17 @@ const GUIDE: { id: string; label: string; line: string; tips: string[] }[] = [
 /** Interactive donation-day journey: a blood bag fills up stage by stage (auto-advances until touched). */
 function DonationJourney() {
   const [i, setI] = useState(0);
-  const [manual, setManual] = useState(false);
+  const [paused, setPaused] = useState(false);
+  // Advance every 5s. Depending on `i` restarts the countdown after a manual click; hovering pauses it.
   useEffect(() => {
-    if (manual || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const t = setInterval(() => setI((x) => (x + 1) % GUIDE.length), 5500);
-    return () => clearInterval(t);
-  }, [manual]);
+    if (paused) return;
+    const t = setTimeout(() => setI((x) => (x + 1) % GUIDE.length), 5000);
+    return () => clearTimeout(t);
+  }, [i, paused]);
   const fill = [0.34, 0.68, 1][i];
   const stage = GUIDE[i];
   return (
-    <div className="grid items-center gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-20">
+    <div className="grid items-center gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-20" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       {/* blood bag */}
       <div className="mx-auto w-full max-w-[17rem]">
         <div className="relative mx-auto h-8 w-1.5 rounded-full bg-black/15" aria-hidden />
@@ -137,11 +138,14 @@ function DonationJourney() {
       <div>
         <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="Donation day stages">
           {GUIDE.map((g, k) => (
-            <button key={g.id} role="tab" aria-selected={k === i} onClick={() => { setI(k); setManual(true); }}
+            <button key={g.id} role="tab" aria-selected={k === i} onClick={() => setI(k)}
               className={cn('rounded-full px-5 py-2.5 text-sm font-semibold ring-1 transition-[background-color,color,transform] duration-500 ease-fluid active:scale-95', k === i ? 'bg-ink text-white ring-ink' : 'bg-white text-ink/70 ring-black/10 hover:bg-white/60')}>
               <span className="mr-2 font-display italic opacity-60">{String(k + 1).padStart(2, '0')}</span>{g.label}
             </button>
           ))}
+        </div>
+        <div className="mb-6 h-0.5 overflow-hidden rounded-full bg-black/10" aria-hidden>
+          <div key={`${i}-${paused}`} className="h-full origin-left rounded-full bg-primary" style={{ animation: paused ? 'none' : 'progress-grow 5s linear both', transform: paused ? 'scaleX(0)' : undefined }} />
         </div>
         <div key={stage.id} className="animate-fade-up">
           <h3 className="font-display text-4xl font-medium sm:text-5xl">{stage.line}</h3>
