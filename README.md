@@ -148,7 +148,7 @@ Delivery is queued in Redis with 5 attempts and exponential back-off; 4xx errors
 Objects get random 192-bit names; downloads use 5-minute signed URLs; credentials never reach the browser.
 
 ## Groq setup
-Create a key at console.groq.com → `GROQ_API_KEY` (several keys may be comma-separated; they are rotated automatically when one is rate-limited), and set `GROQ_MODEL` to a model id listed in your Groq console — `openai/gpt-oss-20b` works well on the free tier. Requests are made **only by the API**, are rate-limited (15/min/user), validated (length/role limits) and receive **anonymised aggregates only** (no names, e-mails or phones). The AI cannot approve certificates or judge medical eligibility, and its system prompts forbid it.
+Create a key at console.groq.com → `GROQ_API_KEY`, and set `GROQ_MODEL` to a model id currently listed in your Groq console. Requests are made **only by the API**, are rate-limited (15/min/user), validated (length/role limits) and receive **anonymised aggregates only** (no names, e-mails or phones). The AI cannot approve certificates or judge medical eligibility, and its system prompts forbid it.
 
 ## API documentation
 Interactive docs: **`/api/docs`** (spec at `/api/docs.json`). All routes live under `/api/v1`; responses use `{ success, data, meta? }` or `{ success:false, error:{ code, message, details? } }`. Authenticate with `Authorization: Bearer <accessToken>`; the refresh token is an httpOnly cookie rotated on `/auth/refresh`.
@@ -186,6 +186,5 @@ Helmet, strict CORS allow-list, global + route-specific rate limits, Zod validat
 | `docker compose up` fails on `MONGO_ROOT_PASSWORD` | `.env` is missing – run the generate script |
 | Port already in use | Change `FRONTEND_PORT` / `API_PORT` in `.env` (and `CLIENT_URL`/`API_BASE_URL` accordingly) |
 | Reset everything | `docker compose down -v` (deletes data) |
-#   L i f e D r o p 
- 
+#   L i f e D r o p  
  
