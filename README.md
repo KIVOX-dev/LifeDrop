@@ -186,5 +186,3 @@ Helmet, strict CORS allow-list, global + route-specific rate limits, Zod validat
 | `docker compose up` fails on `MONGO_ROOT_PASSWORD` | `.env` is missing – run the generate script |
 | Port already in use | Change `FRONTEND_PORT` / `API_PORT` in `.env` (and `CLIENT_URL`/`API_BASE_URL` accordingly) |
 | Reset everything | `docker compose down -v` (deletes data) |
-#   b l o o d b a n k  
- 
